@@ -93,6 +93,8 @@ int main (int n, char **argv)
   BACKEND be = flat;
 
   count = 0;
+  for (i=0; i<N_FIELDS; ++i)
+    str[i]=NULL;
   if (n!=2 || argv[1][0]=='-')
   {
     printf ("uniprot2iea (c) R Stephan <ralf@ark.in-berlin.de>\n");
