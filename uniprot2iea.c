@@ -99,6 +99,7 @@ int main (int n, char **argv)
     printf ("Released under Artistic/GPL, see http://dev.perl.org/licenses\n");
     printf ("Home: http://code.google.com/p/uniprot2iea/\n");
     printf ("Usage: uniprot2iea filename\n\n");
+    exit(1);
   }
   printf ("Trying to read %s\n", argv[1]);
   fp = fopen (argv[1], "r");
