@@ -9,9 +9,11 @@
 #define WM_GOONLY 1
 #define WM_WITHGOA 2
 
+char bufadr[BUFLEN];
 enum Fields {AC = 0, DEF, DEC, DES, GNN, GNL, OS, N_FIELDS};
 
 void dummy() {}
+void fpf (const char* str) { fprintf (stdout, "%s\n", str); } 
 
 typedef struct backend
 {
@@ -30,7 +32,7 @@ typedef struct backend
   void (*ec)(const char*);
 } BACKEND;
 
-BACKEND flat={dummy, dummy, dummy, dummy, flat_lname, flat_lname, flat_lname, flat_lname, flat_lname, flat_go, flat_goo, flat_upid, flat_ec };
+BACKEND flat={dummy, dummy, dummy, dummy, fpf, fpf, fpf, fpf, fpf, fpf, fpf, fpf, fpf};
 
 typedef struct node
 {
@@ -38,7 +40,52 @@ typedef struct node
   struct node *ptr;
 } NODE;
 
-int main (int n, char **argv[])
+NODE *golist = NULL, *goolist = NULL, *iplist = NULL, *halist = NULL;
+
+char *stralloc (const char* p1, const char* p2)
+{
+  char *p = malloc (p2-p1+1);
+  if (p==NULL) { fprintf (stderr, "Memory full.\n"); exit(1); }
+  strncpy (p, p1, p2-p1);
+  p[p2-p1] = '\0';
+  return p;
+}
+
+void add2list (NODE* np, char *str)
+{
+  if (np == NULL)
+  {
+     np = malloc (sizeof(NODE));
+     if (np==NULL) { fprintf (stderr, "Memory full.\n"); exit(1); }
+     np->ptr = NULL;
+     np->str = str;
+  }
+  else
+  {
+     while (np->ptr != NULL)
+       np = np->ptr;
+     np->ptr = malloc (sizeof(NODE));
+     if (np->ptr==NULL) { fprintf (stderr, "Memory full.\n"); exit(1); }
+     np = np->ptr;
+     np->ptr = NULL;
+     np->str = str;
+  }
+}
+
+void freelist (NODE *np)
+{
+  NODE *p;
+  if (np == NULL) return;
+  do {
+    if (np->str != NULL) free (np->str);
+    p = np;
+    np = np->ptr;
+    free (p);
+  }
+  while (np != NULL);
+}
+
+int main (int n, char **argv)
 {
   int count = 0, ac = 0, i,k,j, mode=WM_GOONLY;
   char *buf, *str[N_FIELDS], *a, *b, *ptr;
@@ -62,7 +109,12 @@ int main (int n, char **argv[])
     if (buf[0]=='A' && buf[1]=='C')
     {
       ++count;
-      for (i=0; i<N_FIELDS; ++i) str[i]=NULL;
+      for (i=0; i<N_FIELDS; ++i)
+      {
+        if (str[i]!=NULL)
+          free (str[i]);
+        str[i]=NULL;
+      }
       a = buf+5;
       ptr = a;
       while (*ptr && *ptr!=';') ++ptr;
@@ -167,8 +219,13 @@ int main (int n, char **argv[])
       }
     }
     be.record_end();
+
+    freelist (golist);
+    freelist (goolist);
+    freelist (iplist);
+    freelist (halist);
   }
   printf ("Number of proteins read: %d\n", count);
   printf ("Number of annotation records written: %d\n", ac);
   fclose (fp);
-  }
+}
