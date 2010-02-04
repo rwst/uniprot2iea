@@ -6,20 +6,31 @@
 #include <search.h>
 
 #define BUFLEN 32768
+#define WM_GOONLY 1
+#define WM_WITHGOA 2
 
-enum Fields {AC = 0, DEF, DEC, DES, N_FIELDS};
+enum Fields {AC = 0, DEF, DEC, DES, GNN, GNL, OS, N_FIELDS};
 
 void dummy() {}
 
 typedef struct backend
 {
-  (*void)(record_start)();
-  (*void)(record_end)();
-  (*void)(field_start)();
-  (*void)(field_end)();
+  void (*record_start)();
+  void (*record_end)();
+  void (*field_start)();
+  void (*field_end)();
+  void (*lname)(const char*);
+  void (*fname)(const char*);
+  void (*sname)(const char*);
+  void (*gname)(const char*);
+  void (*oname)(const char*);
+  void (*go)(const char*);     /* writes GO no+desc, type (C,P,F) */
+  void (*goo)(const char*);    /* writes ann. type, reason */
+  void (*upid)(const char*);
+  void (*ec)(const char*);
 } BACKEND;
 
-BACKEND flat={dummy, dummy, dummy, dummy};
+BACKEND flat={dummy, dummy, dummy, dummy, flat_lname, flat_lname, flat_lname, flat_lname, flat_lname, flat_go, flat_goo, flat_upid, flat_ec };
 
 typedef struct node
 {
@@ -27,21 +38,12 @@ typedef struct node
   struct node *ptr;
 } NODE;
 
-typedef struct my_entry
-{
-  char key[16];
-  NODE *list;
-} MENTRY;
-
-FILE *fp;
-char *bufadr, *ptr;
-MENTRY *entries;
-int ecount, eco=0;
-
 int main (int n, char **argv[])
 {
-  int count = 0, nr = 0, np = 0, cseq = 0, i,k,j;
-  char *buf, *str[N_FIELDS], *a, *b;
+  int count = 0, ac = 0, i,k,j, mode=WM_GOONLY;
+  char *buf, *str[N_FIELDS], *a, *b, *ptr;
+  FILE *fp;
+  BACKEND be = flat;
 
   count = 0;
   if (n!=2 || argv[1][0]=='-')
@@ -104,8 +106,15 @@ int main (int n, char **argv[])
          a += 17;
          ptr = a;
          while (*ptr && *ptr!=';') ++ptr;
-         str[DEC] = stralloc (a, ptr);
+         str[GNL] = stralloc (a, ptr);
       }
+    }
+    if (buf[0]=='O' && buf[1]=='S')
+    {
+       a = buf+3;
+       ptr = a;
+       while (*ptr && *ptr!=';') ++ptr;
+       str[OS] = stralloc (a, ptr);
     }
     if (buf[0]=='D' && buf[1]=='R')
     {
@@ -117,6 +126,9 @@ int main (int n, char **argv[])
          ++ptr;                            /* add description */
          while (*ptr && *ptr!=';') ++ptr;
          add2list (golist, stralloc (a, ptr));
+         a = ++ptr;
+         while (*ptr && *ptr!=';') ++ptr;
+         add2list (goolist, stralloc (a, ptr));
       }
       if ((a=strstr(buf,"InterPro;"))!=NULL)
       {
@@ -130,11 +142,33 @@ int main (int n, char **argv[])
          a += 7;
          ptr = a;
          while (*ptr && *ptr!=';') ++ptr;
-         add2list (halist, stralloc (a, ptr);
+         add2list (halist, stralloc (a, ptr));
       }
     }
+    /* all fields for the entry are collected now, write them out */
+    be.record_start();
+    if (mode == WM_GOONLY)
+    {
+      NODE *np, *gnp;
+      for (np = golist, gnp = goolist;
+                (np!=NULL && (np->str)!=NULL);
+                np = np->ptr, gnp = gnp->ptr)
+      {
+        be.lname (str[GNL]);
+        be.upid (str[AC]);
+        be.go (np->str);   /* writes GO no+desc, type (C,P,F) */
+        be.goo (gnp->str); /* writes ann. type, reason */
+        be.ec (str[DEC]);
+        be.fname (str[DEF]);
+        be.sname (str[DES]);
+        be.gname (str[GNN]);
+        be.oname (str[OS]);
+        ++ac;
+      }
+    }
+    be.record_end();
   }
-  printf ("Number of groups: %d\n", count);
-  printf ("Number of groups with MYCT only: %d\n", np);
+  printf ("Number of proteins read: %d\n", count);
+  printf ("Number of annotation records written: %d\n", ac);
   fclose (fp);
   }
