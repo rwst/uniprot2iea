@@ -13,7 +13,11 @@ char bufadr[BUFLEN];
 enum Fields {AC = 0, DEF, DEC, DES, GNN, GNL, OS, N_FIELDS};
 
 void dummy() {}
-void fpf (const char* str) { fprintf (stdout, "%s\n", str); } 
+void gaf1start() { fprintf (stdout, "!gaf-version: 1.0\n"); }
+void gaf1rstart() { fprintf (stdout, "UniProtKB\t"); }
+void gaf1rend() { fprintf (stdout, "\n"); }
+void gaf1fend() { fprintf (stdout, "\t"); }
+void fpf (const char* str) { fprintf (stdout, "%s", str); gaf1fend(); }
 
 typedef struct backend
 {
@@ -32,7 +36,7 @@ typedef struct backend
   void (*ec)(const char*);
 } BACKEND;
 
-BACKEND flat={dummy, dummy, dummy, dummy, fpf, fpf, fpf, fpf, fpf, fpf, fpf, fpf, fpf};
+BACKEND gaf1={gaf1rstart, gaf1rend, dummy, gaf1fend, fpf, fpf, fpf, fpf, fpf, fpf, fpf, fpf, fpf};
 
 typedef struct node
 {
@@ -51,38 +55,40 @@ char *stralloc (const char* p1, const char* p2)
   return p;
 }
 
-void add2list (NODE* np, char *str)
+void add2list (NODE** np, char *str)
 {
-  if (np == NULL)
+fprintf(stderr, "add2list %s\n", str);
+  if (*np == NULL)
   {
-     np = malloc (sizeof(NODE));
-     if (np==NULL) { fprintf (stderr, "Memory full.\n"); exit(1); }
-     np->ptr = NULL;
-     np->str = str;
+     *np = malloc (sizeof(NODE));
+     if (*np==NULL) { fprintf (stderr, "Memory full.\n"); exit(1); }
+     (*np)->ptr = NULL;
+     (*np)->str = str;
   }
   else
   {
-     while (np->ptr != NULL)
-       np = np->ptr;
-     np->ptr = malloc (sizeof(NODE));
-     if (np->ptr==NULL) { fprintf (stderr, "Memory full.\n"); exit(1); }
-     np = np->ptr;
-     np->ptr = NULL;
-     np->str = str;
+     while ((*np)->ptr != NULL)
+       (*np) = (*np)->ptr;
+     (*np)->ptr = malloc (sizeof(NODE));
+     if ((*np)->ptr==NULL) { fprintf (stderr, "Memory full.\n"); exit(1); }
+     *np = (*np)->ptr;
+     (*np)->ptr = NULL;
+     (*np)->str = str;
   }
 }
 
-void freelist (NODE *np)
+void freelist (NODE **np)
 {
   NODE *p;
-  if (np == NULL) return;
+  if (*np == NULL) return;
   do {
-    if (np->str != NULL) free (np->str);
-    p = np;
-    np = np->ptr;
+    if ((*np)->str != NULL) free ((*np)->str);
+    p = *np;
+    *np = (*np)->ptr;
     free (p);
   }
-  while (np != NULL);
+  while (*np != NULL);
+  *np = NULL;
 }
 
 int main (int n, char **argv)
@@ -90,7 +96,7 @@ int main (int n, char **argv)
   int count = 0, ac = 0, i,k,j, mode=WM_GOONLY;
   char *buf, *str[N_FIELDS], *a, *b, *ptr;
   FILE *fp;
-  BACKEND be = flat;
+  BACKEND be = gaf1;
 
   count = 0;
   for (i=0; i<N_FIELDS; ++i)
@@ -156,9 +162,9 @@ int main (int n, char **argv)
          while (*ptr && *ptr!=';') ++ptr;
          str[GNN] = stralloc (a, ptr);
       }
-      if ((a=strstr(buf,"OrderedLocusName="))!=NULL)
+      if ((a=strstr(buf,"OrderedLocusNames="))!=NULL)
       {
-         a += 17;
+         a += 18;
          ptr = a;
          while (*ptr && *ptr!=';') ++ptr;
          str[GNL] = stralloc (a, ptr);
@@ -180,35 +186,35 @@ int main (int n, char **argv)
          while (*ptr && *ptr!=';') ++ptr;
          ++ptr;                            /* add description */
          while (*ptr && *ptr!=';') ++ptr;
-         add2list (golist, stralloc (a, ptr));
+         add2list (&golist, stralloc (a, ptr));
          a = ++ptr;
          while (*ptr && *ptr!=';') ++ptr;
-         add2list (goolist, stralloc (a, ptr));
+         add2list (&goolist, stralloc (a, ptr));
       }
       if ((a=strstr(buf,"InterPro;"))!=NULL)
       {
          a += 10;
          ptr = a;
          while (*ptr && *ptr!=';') ++ptr;
-         add2list (iplist, stralloc (a, ptr));
+         add2list (&iplist, stralloc (a, ptr));
       }
       if ((a=strstr(buf,"HAMAP;"))!=NULL)
       {
          a += 7;
          ptr = a;
          while (*ptr && *ptr!=';') ++ptr;
-         add2list (halist, stralloc (a, ptr));
+         add2list (&halist, stralloc (a, ptr));
       }
     }
     /* all fields for the entry are collected now, write them out */
-    be.record_start();
     if (mode == WM_GOONLY)
     {
       NODE *np, *gnp;
       for (np = golist, gnp = goolist;
-                (np!=NULL && (np->str)!=NULL);
+                (np!=NULL && ((np->str)!=NULL));
                 np = np->ptr, gnp = gnp->ptr)
       {
+        be.record_start();
         be.lname (str[GNL]);
         be.upid (str[AC]);
         be.go (np->str);   /* writes GO no+desc, type (C,P,F) */
@@ -218,15 +224,15 @@ int main (int n, char **argv)
         be.sname (str[DES]);
         be.gname (str[GNN]);
         be.oname (str[OS]);
+        be.record_end();
         ++ac;
       }
     }
-    be.record_end();
 
-    freelist (golist);
-    freelist (goolist);
-    freelist (iplist);
-    freelist (halist);
+    freelist (&golist);
+    freelist (&goolist);
+    freelist (&iplist);
+    freelist (&halist);
   }
   printf ("Number of proteins read: %d\n", count);
   printf ("Number of annotation records written: %d\n", ac);
