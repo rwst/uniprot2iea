@@ -14,7 +14,7 @@ enum Fields {AC = 0, DEF, DEC, DES, GNN, GNL, OS, N_FIELDS};
 
 void dummy() {}
 void gaf1start() { fprintf (stdout, "!gaf-version: 1.0\n"); }
-void gaf1rstart() { fprintf (stdout, "UniProtKB\t"); }
+void gaf1rstart() { fprintf (stdout, "UniProtKB/Swiss-Prot\t"); }
 void gaf1rend() { fprintf (stdout, "\n"); }
 void gaf1fend() { fprintf (stdout, "\t"); }
 void fpf (const char* str) { fprintf (stdout, "%s", str); gaf1fend(); }
@@ -57,7 +57,7 @@ char *stralloc (const char* p1, const char* p2)
 
 void add2list (NODE** np, char *str)
 {
-fprintf(stderr, "add2list %s\n", str);
+/*fprintf(stderr, "add2list %s\n", str);*/
   if (*np == NULL)
   {
      *np = malloc (sizeof(NODE));
@@ -181,12 +181,12 @@ int main (int n, char **argv)
     {
       if ((a=strstr(buf,"GO:"))!=NULL)
       {
-         a += 3;
+         // a += 3;
          ptr = a;
          while (*ptr && *ptr!=';') ++ptr;
+         add2list (&golist, stralloc (a, ptr-1));
          ++ptr;                            /* add description */
          while (*ptr && *ptr!=';') ++ptr;
-         add2list (&golist, stralloc (a, ptr));
          a = ++ptr;
          while (*ptr && *ptr!=';') ++ptr;
          add2list (&goolist, stralloc (a, ptr));
@@ -215,14 +215,13 @@ int main (int n, char **argv)
                 np = np->ptr, gnp = gnp->ptr)
       {
         be.record_start();
-        be.lname (str[GNL]);
         be.upid (str[AC]);
+        be.lname (str[GNN]!=NULL?str[GNN]:str[GNL]);
         be.go (np->str);   /* writes GO no+desc, type (C,P,F) */
         be.goo (gnp->str); /* writes ann. type, reason */
         be.ec (str[DEC]);
         be.fname (str[DEF]);
         be.sname (str[DES]);
-        be.gname (str[GNN]);
         be.oname (str[OS]);
         be.record_end();
         ++ac;
