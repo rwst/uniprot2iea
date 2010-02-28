@@ -31,12 +31,15 @@ typedef struct backend
   void (*gname)(const char*);
   void (*oname)(const char*);
   void (*go)(const char*);     /* writes GO no+desc, type (C,P,F) */
-  void (*goo)(const char*);    /* writes ann. type, reason */
+  void (*goref)(const char*);
+  void (*ref)(const char*);
+  void (*gotype)(const char*);
+  void (*goann)(const char*);    /* writes ann. type, reason */
   void (*upid)(const char*);
   void (*ec)(const char*);
 } BACKEND;
 
-BACKEND gaf1={gaf1rstart, gaf1rend, dummy, gaf1fend, fpf, fpf, fpf, fpf, fpf, fpf, fpf, fpf, fpf};
+BACKEND gaf1={gaf1rstart, gaf1rend, dummy, gaf1fend, fpf, fpf, fpf, fpf, fpf, fpf, fpf, fpf, fpf, fpf, fpf, fpf};
 
 typedef struct node
 {
@@ -44,7 +47,7 @@ typedef struct node
   struct node *ptr;
 } NODE;
 
-NODE *golist = NULL, *goolist = NULL, *iplist = NULL, *halist = NULL;
+NODE *iplist = NULL, *halist = NULL;
 
 char *stralloc (const char* p1, const char* p2)
 {
@@ -89,6 +92,18 @@ void freelist (NODE **np)
   }
   while (*np != NULL);
   *np = NULL;
+}
+
+const char *conv_goref (const char *str)
+{
+  static char *tab[] = {"EC", "HAMAP", "InterPro", "UniProtKB-KW", "UniProtKB-SubCell"};
+  static char *ref[] = {"GO_REF:0000003", "GO_REF:0000020", "GO_REF:0000002", "GO_REF:0000004", "GO_REF:0000023" };
+  int i;
+  for (i=0; i<sizeof(tab)/sizeof(char *); ++i)
+    if (!strcmp (str, tab[i]))
+      return ref[i];
+  fprintf (stderr, "error: unknown GO_REF: %s\n", str);
+  return NULL;
 }
 
 int main (int n, char **argv)
@@ -177,21 +192,23 @@ int main (int n, char **argv)
        while (*ptr && *ptr!=';') ++ptr;
        str[OS] = stralloc (a, ptr);
     }
-    if (buf[0]=='D' && buf[1]=='R')
+    if (!strncmp (buf, "DR   GO;", 8))
     {
-      if ((a=strstr(buf,"GO:"))!=NULL)
-      {
-         // a += 3;
-         ptr = a;
-         while (*ptr && *ptr!=';') ++ptr;
-         add2list (&golist, stralloc (a, ptr-1));
-         ++ptr;                            /* add description */
-         while (*ptr && *ptr!=';') ++ptr;
-         a = ++ptr;
-         while (*ptr && *ptr!=';') ++ptr;
-         add2list (&goolist, stralloc (a, ptr));
-      }
-      if ((a=strstr(buf,"InterPro;"))!=NULL)
+      char *go, *got, *gor, *goa;
+      char *a = buf+9, *ptr = buf+19;
+      go = stralloc (a, ptr);
+      ++ptr; ++ptr;
+      got = stralloc (ptr, ptr+1);
+      ++ptr; ++ptr;
+      while (*ptr && *ptr!=';') ++ptr;
+      ++ptr;
+      a = ++ptr;
+      while (*ptr && *ptr!=':') ++ptr;
+      goa = stralloc (a, ptr);
+      a = ++ptr;
+      while (*ptr && *ptr!='.') ++ptr;
+      gor = stralloc (a, ptr);
+/*      if ((a=strstr(buf,"InterPro;"))!=NULL)
       {
          a += 10;
          ptr = a;
@@ -204,34 +221,30 @@ int main (int n, char **argv)
          ptr = a;
          while (*ptr && *ptr!=';') ++ptr;
          add2list (&halist, stralloc (a, ptr));
-      }
-    }
+      }*/
     /* all fields for the entry are collected now, write them out */
-    if (mode == WM_GOONLY)
-    {
-      NODE *np, *gnp;
-      for (np = golist, gnp = goolist;
-                (np!=NULL && ((np->str)!=NULL));
-                np = np->ptr, gnp = gnp->ptr)
+      if (mode == WM_GOONLY)
       {
         be.record_start();
         be.upid (str[AC]);
         be.lname (str[GNN]!=NULL?str[GNN]:str[GNL]);
-        be.go (np->str);   /* writes GO no+desc, type (C,P,F) */
-        be.goo (gnp->str); /* writes ann. type, reason */
-        be.ec (str[DEC]);
+        be.go (go);
+        be.goref (conv_goref (gor));
+        be.goann (goa);
+        //be.ref ();
+        be.gotype (got);
         be.fname (str[DEF]);
         be.sname (str[DES]);
         be.oname (str[OS]);
         be.record_end();
         ++ac;
       }
+      free (go);
+      free (gor);
+      free (got);
+      free (goa);
     }
 
-    freelist (&golist);
-    freelist (&goolist);
-    freelist (&iplist);
-    freelist (&halist);
   }
   printf ("Number of proteins read: %d\n", count);
   printf ("Number of annotation records written: %d\n", ac);
