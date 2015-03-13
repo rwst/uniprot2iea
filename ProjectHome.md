@@ -1,0 +1,3 @@
+uniprot2iea is a tool written in C aimed for Gene Ontology (GO) annotators. It extracts GO annotations from a flat text UniProt database using GOA mapping files. The output format is GAF 1.0. This would especially be useful to create an annotation base you can build on by adding manual annotations. Another possibility would be to use alternative GOA files with different GO terms.
+
+Pending the download method of getting annotations in GOA, this will not longer be developed.
